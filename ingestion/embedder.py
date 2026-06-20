@@ -1,0 +1,65 @@
+"""Embed text chunks and upsert into Chroma."""
+from __future__ import annotations
+
+import hashlib
+from pathlib import Path
+
+import chromadb
+from chromadb.utils import embedding_functions
+
+from ingestion.chunker import TextChunk
+
+_CHROMA_DIR = str(Path(__file__).parent.parent / "chroma_db")
+_COLLECTION_NAME = "indian_law"
+
+_BATCH_SIZE = 100
+
+
+def _chunk_id(chunk: TextChunk) -> str:
+    """Deterministic ID so re-runs don't duplicate entries."""
+    key = f"{chunk.metadata.get('source_act')}|{chunk.metadata.get('section_id')}|{chunk.text[:80]}"
+    return hashlib.md5(key.encode()).hexdigest()
+
+
+def upsert_chunks(chunks: list[TextChunk], verbose: bool = True) -> int:
+    """Embed and upsert chunks into Chroma. Returns count upserted."""
+    if not chunks:
+        return 0
+
+    # Deduplicate by ID globally — Chroma upsert requires unique IDs per batch
+    seen: dict[str, TextChunk] = {}
+    for c in chunks:
+        cid = _chunk_id(c)
+        if cid not in seen:
+            seen[cid] = c
+    unique_chunks = list(seen.values())
+
+    if verbose and len(unique_chunks) < len(chunks):
+        print(f"    deduplicated: {len(chunks)} → {len(unique_chunks)} unique chunks")
+
+    ef = embedding_functions.SentenceTransformerEmbeddingFunction(
+        model_name="all-MiniLM-L6-v2"
+    )
+    client = chromadb.PersistentClient(path=_CHROMA_DIR)
+    collection = client.get_or_create_collection(
+        name=_COLLECTION_NAME,
+        embedding_function=ef,
+        metadata={"hnsw:space": "cosine"},
+    )
+
+    total = 0
+    for i in range(0, len(unique_chunks), _BATCH_SIZE):
+        batch = unique_chunks[i : i + _BATCH_SIZE]
+        ids = [_chunk_id(c) for c in batch]
+        documents = [c.text for c in batch]
+        metadatas = [
+            {k: str(v) for k, v in c.metadata.items()} for c in batch
+        ]
+
+        collection.upsert(ids=ids, documents=documents, metadatas=metadatas)
+        total += len(batch)
+
+        if verbose:
+            print(f"    upserted {total}/{len(unique_chunks)} chunks...")
+
+    return total
