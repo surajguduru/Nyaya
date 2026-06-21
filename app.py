@@ -200,11 +200,27 @@ def _init_state() -> None:
             st.session_state[k] = v
 
 
+def _build_fresh_graph():
+    import importlib
+    import agents.prompts, agents.clerk, agents.prosecution, agents.defence
+    import agents.judge, agents.auditor
+    import graph.edges, graph.court
+    importlib.reload(agents.prompts)
+    importlib.reload(agents.clerk)
+    importlib.reload(agents.prosecution)
+    importlib.reload(agents.defence)
+    importlib.reload(agents.judge)
+    importlib.reload(agents.auditor)
+    importlib.reload(graph.edges)
+    importlib.reload(graph.court)
+    from langgraph.checkpoint.memory import MemorySaver
+    from graph.court import build_graph
+    return build_graph(checkpointer=MemorySaver())
+
+
 def _get_graph():
     if "graph" not in st.session_state:
-        from langgraph.checkpoint.memory import MemorySaver
-        from graph.court import build_graph
-        st.session_state["graph"] = build_graph(checkpointer=MemorySaver())
+        st.session_state["graph"] = _build_fresh_graph()
     return st.session_state["graph"]
 
 
