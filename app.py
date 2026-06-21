@@ -342,6 +342,106 @@ def _audit_html(audit: dict) -> str:
 </div>"""
 
 
+
+def _scoreboard_html() -> str:
+    rounds = st.session_state.rounds
+    scored = [(i + 1, rd) for i, rd in enumerate(rounds) if rd.get("score")]
+    if not scored:
+        return ""
+    p_scores = [rd["score"].get("prosecution_strength", 5) for _, rd in scored]
+    d_scores = [rd["score"].get("defence_strength", 5) for _, rd in scored]
+    p_avg = sum(p_scores) / len(p_scores)
+    d_avg = sum(d_scores) / len(d_scores)
+    if p_avg > d_avg + 0.3:
+        lead_text, lead_cls = "PROSECUTION LEADING", "pros"
+    elif d_avg > p_avg + 0.3:
+        lead_text, lead_cls = "DEFENCE LEADING", "def"
+    else:
+        lead_text, lead_cls = "BALANCED", "bal"
+    rounds_done = len(scored)
+    def _trend(scores: list) -> str:
+        if len(scores) < 2:
+            return ""
+        diff = scores[-1] - scores[-2]
+        if diff > 0:
+            return f"<span style=\'color:#4CAF80;font-size:0.65rem\'> ▲{diff}</span>"
+        if diff < 0:
+            return f"<span style=\'color:#C05050;font-size:0.65rem\'> ▼{abs(diff)}</span>"
+        return "<span style=\'color:var(--text-muted);font-size:0.65rem\'> —</span>"
+    history_items = "".join(
+        f"<span class=\'ny-sb-history-round\'>"
+        f"<span class=\'rn\'>R{rn}</span> "
+        f"<span class=\'ps\'>P:{rd[\'score\'].get(\'prosecution_strength\', \'?\')}</span> "
+        f"<span class=\'ds\'>D:{rd[\'score\'].get(\'defence_strength\', \'?\')}</span>"
+        f"</span>"
+        for rn, rd in scored
+    )
+    return f"""
+<div class=\'ny-section\'>Judge\'s Running Assessment · {rounds_done} Round{"s" if rounds_done != 1 else ""} Scored</div>
+<div class=\'ny-scoreboard\'>
+  <div class=\'ny-sb-header\'>
+    <span class=\'ny-sb-title\'>Cumulative Score</span>
+    <span class=\'ny-sb-lead {lead_cls}\'>{lead_text}</span>
+  </div>
+  <div class=\'ny-sb-bars\'>
+    <div class=\'ny-sb-row\'>
+      <span class=\'ny-sb-name\'>Prosecution</span>
+      <div class=\'ny-sb-track\'><div class=\'ny-sb-fill-p\' style=\'width:{p_avg*10:.0f}%\'></div></div>
+      <span class=\'ny-sb-score-val\'>{p_avg:.1f}<span class=\'ny-sb-trend\'>{_trend(p_scores)}</span></span>
+    </div>
+    <div class=\'ny-sb-row\'>
+      <span class=\'ny-sb-name\'>Defence</span>
+      <div class=\'ny-sb-track\'><div class=\'ny-sb-fill-d\' style=\'width:{d_avg*10:.0f}%\'></div></div>
+      <span class=\'ny-sb-score-val\'>{d_avg:.1f}<span class=\'ny-sb-trend\'>{_trend(d_scores)}</span></span>
+    </div>
+  </div>
+  <div class=\'ny-sb-divider\'></div>
+  <div class=\'ny-sb-history\'>{history_items}</div>
+</div>"""
+
+
+def _judge_score_html(score: dict) -> str:
+    p = score.get("prosecution_strength", 0)
+    d = score.get("defence_strength", 0)
+    decision = score.get("decision", "proceed_to_verdict")
+    badge_cls = "loop" if decision == "another_round" else "stop"
+    badge_text = "Another round ordered" if decision == "another_round" else "Proceeding to verdict"
+    reasoning = score.get("reasoning", "")
+    uncited = score.get("uncited_statutes", [])
+    uncited_note = ""
+    if uncited:
+        uncited_note = f" <em>The court expected to hear arguments on: {\', \'.join(uncited[:4])}.</em>"
+    weak = score.get("weak_side", "balanced")
+    weak_note = ""
+    if weak != "balanced":
+        weak_note = f" {\'Prosecution\' if weak == \'prosecution\' else \'Defence\'} counsel\'s arguments were weaker this round."
+    return f"""
+<div class=\'ny-judge\'>
+  <div class=\'ny-judge-title\'>Judge\'s Assessment — Round {score.get(\'round_number\', \'?\')}</div>
+  <div class=\'ny-score-row\'>
+    <span class=\'ny-score-name\'>Prosecution</span>
+    <div class=\'ny-score-track\'><div class=\'ny-score-fill-p\' style=\'width:{p*10}%\'></div></div>
+    <span class=\'ny-score-num\'>{p}/10</span>
+  </div>
+  <div class=\'ny-score-row\'>
+    <span class=\'ny-score-name\'>Defence</span>
+    <div class=\'ny-score-track\'><div class=\'ny-score-fill-d\' style=\'width:{d*10}%\'></div></div>
+    <span class=\'ny-score-num\'>{d}/10</span>
+  </div>
+  <span class=\'ny-decision {badge_cls}\'>{badge_text}</span>
+  <div class=\'ny-judge-reason\'>{reasoning}{weak_note}{uncited_note}</div>
+</div>"""
+
+
+def _conf_description(conf: int) -> str:
+    if conf >= 9:
+        return "Overwhelming — one side dominated throughout"
+    if conf >= 7:
+        return "High — arguments on the winning side clearly prevailed"
+    if conf >= 5:
+        return "Moderate — contested arguments, some doubt remains"
+    return "Low — significant uncertainty; evidence was thin on both sides"
+
 # ── State absorber ─────────────────────────────────────────────────────────────
 
 def _absorb(node_name: str, update: dict) -> None:
@@ -417,6 +517,7 @@ def _run_pre_hitl(facts: str) -> None:
     }
 
     case_slot = st.empty()
+    scoreboard_slot = st.empty()
     activity_slot = st.empty()
     round_slots: list[dict] = [
         {"header": st.empty(), "args": st.empty(), "score": st.empty()}
@@ -451,6 +552,19 @@ def _run_pre_hitl(facts: str) -> None:
                         if 0 <= rn_idx < _MAX_ROUNDS:
                             rd = st.session_state.rounds[rn_idx]
                             round_slots[rn_idx]["args"].markdown(_round_args_html(rd), unsafe_allow_html=True)
+
+                elif node_name == "judge_node" and "judge_scores" in update:
+                    for score in update["judge_scores"]:
+                        rn = _rn_from(score)
+                        rn_idx = rn - 1
+                        if 0 <= rn_idx < _MAX_ROUNDS:
+                            rd = st.session_state.rounds[rn_idx]
+                            s = rd.get("score")
+                            if s:
+                                round_slots[rn_idx]["score"].markdown(_judge_score_html(s), unsafe_allow_html=True)
+                    sb_html = _scoreboard_html()
+                    if sb_html:
+                        scoreboard_slot.markdown(sb_html, unsafe_allow_html=True)
 
                 elif node_name == "auditor_node" and st.session_state.audit_result:
                     audit_slot.markdown(_audit_html(st.session_state.audit_result), unsafe_allow_html=True)
