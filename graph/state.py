@@ -140,8 +140,14 @@ class JudgeScore(BaseModel):
         # LLM sometimes outputs floats (e.g. 7.5) — round to nearest int
         data = dict(data)
         for field in ("prosecution_strength", "defence_strength"):
-            if field in data and isinstance(data[field], float):
-                data[field] = round(data[field])
+            v = data.get(field)
+            if isinstance(v, float):
+                data[field] = round(v)
+            elif isinstance(v, str):
+                try:
+                    data[field] = int(float(v))
+                except (ValueError, TypeError):
+                    pass
         return data
 
 
