@@ -114,16 +114,18 @@ def judge_node(state: GraphState) -> dict:
 
 
 def _compact_transcript(transcript: list[dict]) -> str:
-    """One line per argument: side, round, top statute, short claim snippet."""
+    """One line per argument — enough context for verdict without burning tokens."""
     lines = []
     for arg in transcript:
         side     = arg.get("side", "?").upper()
         rn       = arg.get("round_number", "?")
-        claims   = arg.get("claims", [])
-        statutes = arg.get("statutes_cited", [])
-        snippet  = (claims[0][:50] + "…") if claims else "—"
-        stat_str = ", ".join(statutes[:2]) or "—"
-        lines.append(f"R{rn} {side}: {snippet} [{stat_str}]")
+        claims   = arg.get("claims") or []
+        statutes = arg.get("statutes_cited") or []
+        precs    = arg.get("precedents_cited") or []
+        snippet  = (str(claims[0])[:50] + "…") if claims else "—"
+        stat_str = ", ".join(str(s) for s in statutes[:2]) or "—"
+        prec_str = (str(precs[0])[:40] + "…") if precs else "—"
+        lines.append(f"R{rn} {side}: {snippet} [stat: {stat_str}] [prec: {prec_str}]")
     return "\n".join(lines)
 
 
