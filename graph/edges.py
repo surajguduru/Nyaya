@@ -37,6 +37,9 @@ def judge_routing(state: GraphState) -> Literal["prosecution_node", "auditor_nod
 
     if decision == "another_round" and current_round <= max_rounds:
         return "prosecution_node"
+    # If the judge said another_round but the cap is already exceeded,
+    # force auditor. judge_node applies the same cap so this is a
+    # defence-in-depth guard only.
     return "auditor_node"
 
 
