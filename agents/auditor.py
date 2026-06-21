@@ -43,8 +43,11 @@ def auditor_node(state: GraphState) -> dict:
         audit_notes=notes,
     )
 
+    # Always set current_phase to "hitl" regardless of audit outcome.
+    # The original "argue" value triggered an infinite re-argue loop:
+    # LLM re-generated citations → new hallucinations → auditor failed again.
     return {
         "audit_result": audit.model_dump(),
         "audit_passed": passed,
-        "current_phase": "hitl" if passed else "argue",
+        "current_phase": "hitl",
     }
