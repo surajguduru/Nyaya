@@ -456,12 +456,14 @@ def _judge_score_html(score: dict) -> str:
 
 def _conf_description(conf: int) -> str:
     if conf >= 9:
-        return "Overwhelming — one side dominated throughout"
+        return "Overwhelming — evidence on one side was conclusive"
     if conf >= 7:
-        return "High — arguments on the winning side clearly prevailed"
+        return "High — winning side held a clear advantage on the facts"
     if conf >= 5:
-        return "Moderate — contested arguments, some doubt remains"
-    return "Low — significant uncertainty; evidence was thin on both sides"
+        return "Moderate — case was contested; some doubt remains"
+    if conf >= 3:
+        return "Low — outcome was uncertain; evidence was equivocal"
+    return "Very low — genuinely contested; verdict could have gone either way"
 
 # ── State absorber ─────────────────────────────────────────────────────────────
 

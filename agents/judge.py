@@ -193,6 +193,13 @@ def verdict_node(state: GraphState) -> dict:
 
     verdict: Verdict = structured_llm.invoke(messages)
 
+    # Override LLM confidence with a value derived from the final win_probability.
+    # The LLM anchors to ~8 regardless of case strength; win_probability is the
+    # ground truth we computed round-by-round.
+    final_wp = scores[-1].get("win_probability", 50) if scores else 50
+    derived_confidence = min(10, max(1, round(abs(final_wp - 50) / 5)))
+    verdict.confidence = derived_confidence
+
     return {
         "verdict": verdict.model_dump(),
         "current_phase": "done",
