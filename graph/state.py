@@ -155,6 +155,10 @@ class JudgeScore(BaseModel):
                     data[field] = int(float(v))
                 except (ValueError, TypeError):
                     pass
+        # Coerce invalid weak_side values to "balanced"
+        ws = data.get("weak_side")
+        if ws not in ("prosecution", "defence", "balanced"):
+            data["weak_side"] = "balanced"
         if "win_probability" in data:
             v = data["win_probability"]
             if isinstance(v, float):
