@@ -142,6 +142,24 @@ def _compact_transcript(transcript: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def confidence_from_margin(prosecution_avg: float, defence_avg: float) -> int:
+    """Map the average per-round strength margin to a 1-10 confidence score.
+
+    Confidence must reflect how decisively one side outscored the other across
+    the whole trial. We deliberately do NOT derive it from the final
+    win_probability: win_probability is gated to terminate the trial the moment
+    it reaches 80, and because it moves in fixed 5-point steps it lands on
+    exactly 80 for almost every decisive case — collapsing confidence to a
+    constant 6. The average margin keeps full resolution and is unaffected by
+    where the early-exit happened to fire.
+
+    The scale aligns with the verdict's confidence buckets: a 1-point average
+    margin reads as "low", 2 as "moderate", 3 as "high", 4+ as "overwhelming".
+    """
+    margin = abs(prosecution_avg - defence_avg)
+    return min(10, max(1, round(1 + margin * 2)))
+
+
 def verdict_node(state: GraphState) -> dict:
     """LangGraph node: Judge renders the final verdict after HITL approval."""
     structured_llm = get_structured_llm(Verdict)
@@ -193,12 +211,10 @@ def verdict_node(state: GraphState) -> dict:
 
     verdict: Verdict = structured_llm.invoke(messages)
 
-    # Override LLM confidence with a value derived from the final win_probability.
-    # The LLM anchors to ~8 regardless of case strength; win_probability is the
-    # ground truth we computed round-by-round.
-    final_wp = scores[-1].get("win_probability", 50) if scores else 50
-    derived_confidence = min(10, max(1, round(abs(final_wp - 50) / 5)))
-    verdict.confidence = derived_confidence
+    # Override LLM confidence. The LLM anchors to ~8 regardless of case strength,
+    # so we compute it from the average per-round strength margin instead — see
+    # confidence_from_margin for why this beats deriving it from win_probability.
+    verdict.confidence = confidence_from_margin(p_avg, d_avg)
 
     return {
         "verdict": verdict.model_dump(),

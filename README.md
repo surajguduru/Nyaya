@@ -10,7 +10,7 @@
 
 **Pain point:** Single-prompt LLMs give one-sided, ungrounded answers and routinely hallucinate Indian statute numbers — which is dangerous in a legal context. There is no accessible tool that (a) argues both sides rigorously, (b) grounds every claim in real statutory text, (c) applies the correct code regime (BNS vs IPC based on offence date), and (d) delivers a judge-adjudicated verdict with a citation-integrity guarantee.
 
-**Solution:** A multi-agent moot court: two opposing advocate agents debate across up to 3 rounds, each retrieving real statute sections from a local RAG corpus. An independent Judge agent evaluates round quality and controls the loop. A Citation Auditor blocks any verdict containing hallucinated sections. A human legal reviewer approves before the verdict is finalised.
+**Solution:** A multi-agent moot court: two opposing advocate agents debate across up to 5 rounds, each retrieving real statute sections from a local RAG corpus. An independent Judge agent scores each round (1–10 per side), maintains a deterministic running **win probability**, and controls the loop — proceeding to verdict early when the case becomes decisively one-sided. A Citation Auditor blocks any verdict containing hallucinated sections. A human legal reviewer approves before the verdict is finalised.
 
 ---
 
@@ -58,7 +58,7 @@ Fact Scenario
 | Branch | Trigger | Options |
 |--------|---------|---------|
 | Code regime | Clerk extracts offence date | BNS (≥ Jul 2024) or IPC (< Jul 2024) |
-| Judge routing | After each round | `another_round` (loop) or `proceed_to_verdict` |
+| Judge routing | After each round | `another_round` (loop) or `proceed_to_verdict` — forced to proceed when win probability reaches ≥ 80 / ≤ 20, or at the `MAX_ROUNDS` cap |
 | Auditor routing | After citation audit | `re-argue` (hallucinations found) or `hitl` (clean) |
 
 ---
@@ -70,7 +70,7 @@ Fact Scenario
 | **Clerk** | Parses facts → structured CaseFile; sets code regime deterministically | None | `CaseFile` |
 | **Prosecution Advocate** | Argues liability; must cite ≥2 statutes + 1 precedent | `statute_retrieval_tool`, `precedent_search_tool` | `Argument` |
 | **Defence Advocate** | Argues exculpation; same citation requirements | `statute_retrieval_tool`, `precedent_search_tool` | `Argument` |
-| **Judge** | Scores each round (1–10), decides loop vs proceed | None | `JudgeScore` |
+| **Judge** | Scores each side's round strength (1–10), decides loop vs proceed; win probability is then computed deterministically from those scores | None | `JudgeScore` |
 | **Auditor** | Validates every cited statute against corpus; blocks hallucinations | `citation_validator_tool` | `CitationAuditResult` |
 
 ---
@@ -83,11 +83,25 @@ Fact Scenario
 | Code regime selection | **Deterministic** | `offence_date < 2024-07-01 → IPC` — pure Python rule |
 | Statute retrieval | **Deterministic** | Chroma vector search with metadata filter |
 | Advocacy (Prosecution/Defence) | **AI** | Requires legal reasoning, argument construction, rebuttal |
-| Round scoring (Judge) | **AI** | Requires evaluative judgment over transcript |
-| Loop vs proceed decision | **Deterministic** | `round < MAX_ROUNDS AND score ≤ 5 → loop` |
+| Round scoring (Judge) | **AI** | Requires evaluative judgment over transcript — emits a 1–10 strength score per side |
+| Win probability | **Deterministic** | `50 + Σ (prosecution_strength − defence_strength) × 5` over rounds, clamped to [5, 95] — computed in Python, never by the LLM |
+| Early-exit decision | **Deterministic** | Trial proceeds to verdict once win probability reaches ≥ 80 / ≤ 20, or at the `MAX_ROUNDS` cap |
 | Citation validation (Auditor) | **Deterministic** | Exact metadata lookup in Chroma — no LLM involved |
 | Verdict rendering | **AI** | Requires synthesis of all rounds into a reasoned conclusion |
+| Verdict confidence | **Deterministic** | Derived from the average per-round strength margin `abs(p_avg − d_avg)`, not the LLM's self-reported confidence |
 | HITL gate | **Human** | High-stakes output; mandatory review before finalisation |
+
+---
+
+## Scoring, Win Probability & Confidence
+
+The trial's quantitative signals are **deliberately deterministic** — the LLM Judge supplies only the qualitative input (each side's 1–10 strength score per round); every number derived from it is computed in Python so the trajectory is reproducible and explainable.
+
+- **Win probability** starts at 50 (neutral) and accumulates each round:
+  `win_probability = 50 + Σ (prosecution_strength − defence_strength) × 5`, clamped to `[5, 95]`.
+  Because strengths are integers and each margin-point is worth 5 points, the bar moves in 5% steps — a typical 1-point round edge shifts it ±5%. This is by design: an earlier version let the LLM emit the probability directly and it kept re-anchoring to the same value every round.
+- **Early exit:** once win probability reaches **≥ 80 or ≤ 20**, the case is decisively one-sided and the Judge proceeds straight to verdict — no further rounds. `MAX_ROUNDS` is the hard upper bound.
+- **Verdict confidence** reflects *how decisive* the win was, scaled from the **average per-round strength margin** (`abs(p_avg − d_avg)`): roughly 1-point margin → low, 2 → moderate, 3 → high, 4+ → overwhelming. It is **not** derived from the final win probability — because the early-exit always halts a decisive case at exactly 80, doing so would collapse confidence to a constant 6 regardless of how lopsided the trial actually was.
 
 ---
 
@@ -178,7 +192,7 @@ python -m eval.evaluate
 - **Mandatory disclaimer** on every `Verdict` object — cannot be suppressed
 - **HITL gate** — LangGraph `interrupt()` suspends graph; human must type `approve` before verdict is finalised
 - **Citation validator** — deterministic Chroma metadata lookup, not LLM — cannot hallucinate
-- **Max rounds cap** — controlled by `MOOT_COURT_MAX_ROUNDS` env var (default 3)
+- **Max rounds cap** — controlled by `MOOT_COURT_MAX_ROUNDS` env var (default 5)
 - **Refusal** — Clerk system prompt rejects personal legal advice requests framed as "my case"
 
 ---
