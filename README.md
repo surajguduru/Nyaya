@@ -10,7 +10,7 @@
 
 **Pain point:** Single-prompt LLMs give one-sided, ungrounded answers and routinely hallucinate Indian statute numbers — which is dangerous in a legal context. There is no accessible tool that (a) argues both sides rigorously, (b) grounds every claim in real statutory text, (c) applies the correct code regime (BNS vs IPC based on offence date), and (d) delivers a judge-adjudicated verdict with a citation-integrity guarantee.
 
-**Solution:** A multi-agent moot court: two opposing advocate agents debate across up to 3 rounds, each retrieving real statute sections from a local RAG corpus. An independent Judge agent evaluates round quality and controls the loop. A Citation Auditor blocks any verdict containing hallucinated sections. A human legal reviewer approves before the verdict is finalised.
+**Solution:** A multi-agent moot court: two opposing advocate agents debate across up to 5 rounds, each retrieving real statute sections from a local RAG corpus. An independent Judge agent evaluates round quality and controls the loop. A Citation Auditor validates every cited section, and a human legal reviewer sees the audit result and approves before the verdict is finalised.
 
 ---
 
@@ -41,10 +41,10 @@ Fact Scenario
                                      │ (Citation    │       citation check
                                      │  Validator)  │
                                      └──────────────┘
-                                            │ citations clean
+                                            │ audit result (pass OR fail)
                                             ▼
                                      ┌──────────────┐
-                                     │ Human Review │ (HITL interrupt)
+                                     │ Human Review │ (HITL interrupt) ──► reject ──► back to Judge
                                      └──────────────┘
                                             │ approved
                                             ▼
@@ -59,7 +59,9 @@ Fact Scenario
 |--------|---------|---------|
 | Code regime | Clerk extracts offence date | BNS (≥ Jul 2024) or IPC (< Jul 2024) |
 | Judge routing | After each round | `another_round` (loop) or `proceed_to_verdict` |
-| Auditor routing | After citation audit | `re-argue` (hallucinations found) or `hitl` (clean) |
+| HITL routing | After human review | `approve` (→ verdict) or `reject` (→ back to Judge for re-deliberation) |
+
+> The Auditor always hands off to the HITL gate — the audit outcome (verified vs. hallucinated citations) is surfaced to the human reviewer, who then approves or sends the case back. (An earlier design re-routed failed audits straight back to the advocates, but that could loop indefinitely, so the human now adjudicates audit failures.)
 
 ---
 
@@ -178,7 +180,7 @@ python -m eval.evaluate
 - **Mandatory disclaimer** on every `Verdict` object — cannot be suppressed
 - **HITL gate** — LangGraph `interrupt()` suspends graph; human must type `approve` before verdict is finalised
 - **Citation validator** — deterministic Chroma metadata lookup, not LLM — cannot hallucinate
-- **Max rounds cap** — controlled by `MOOT_COURT_MAX_ROUNDS` env var (default 3)
+- **Max rounds cap** — controlled by `MOOT_COURT_MAX_ROUNDS` env var (default 5)
 - **Refusal** — Clerk system prompt rejects personal legal advice requests framed as "my case"
 
 ---
@@ -194,11 +196,13 @@ python -m eval.evaluate
 
 ## Individual Contributions
 
+> See [`CONTRIBUTIONS.md`](CONTRIBUTIONS.md) for the full per-file ownership matrix.
+
 | Contributor | Responsibilities |
 |-------------|-----------------|
-| **Suraj Guduru** | LangGraph graph architecture (`graph/state.py`, `graph/edges.py`, `graph/court.py`), Judge agent, CLI entry point, integration and evaluation harness |
-| **Venkatesh** | RAG ingestion pipeline (`ingestion/download_statutes.py`, `chunker.py`, `embedder.py`, `build_corpus.py`), `rag/retriever.py`, `tools/statute_tool.py`, `tools/citation_validator.py` |
-| **Thrishal** | Precedent scraping (`ingestion/scrape_kanoon.py`), `rag/precedent_search.py`, `tools/precedent_tool.py`, all agent system prompts (`agents/prompts.py`), Clerk/Prosecution/Defence/Auditor agent nodes, evaluation case scenarios |
+| **Suraj Guduru** | Data models & graph assembly (`graph/state.py`, `graph/court.py`), Judge agent & verdict renderer (`agents/judge.py`), LLM factory (`utils/llm.py`), `rag/retriever.py`, Streamlit HITL/verdict panels, eval runner (`eval/evaluate.py`, cases 01 & 05), setup/config |
+| **Sai Venkatesh Alampally** | Prosecution & Auditor agents (`agents/prosecution.py`, `agents/auditor.py`), citation & statute tools, RAG ingestion pipeline (`ingestion/download_statutes.py`, `chunker.py`, `embedder.py`, `build_corpus.py`), statute corpus, Streamlit scoreboard/judge cards, eval cases 02 & 04 |
+| **Thrishal Madasu** | Conditional routing (`graph/edges.py`), all agent system prompts (`agents/prompts.py`), Clerk & Defence agents, precedent search & scraping (`rag/precedent_search.py`, `tools/precedent_tool.py`, `ingestion/scrape_kanoon.py`), precedent corpus, Streamlit case display/argument cards, CLI (`cli/run_case.py`), eval case 03, README |
 
 ---
 
