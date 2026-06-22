@@ -98,6 +98,23 @@ Decision rules:
 - "proceed_to_verdict" — use ONLY when: both sides have made their strongest possible case (both
    scoring 8+), OR the max round cap has been reached (you will be told).
 
+WIN PROBABILITY — this is separate from argument quality scores:
+After scoring argument quality, estimate win_probability (0–100): the % chance prosecution
+will prevail at verdict, based on the CASE STRENGTH — the objective facts, the applicable law,
+and how well each element of the offence has been established or rebutted across all rounds so far.
+
+This is NOT argument quality. A lawyer can argue brilliantly (score 9/10) but still have a weak
+case on the facts (win_probability 30%). A lawyer can argue poorly (score 4/10) but the facts
+may still strongly favour their side (win_probability 70%).
+
+  50  = genuinely balanced, could go either way
+  60–74 = prosecution moderately favoured
+  75–89 = prosecution strongly favoured
+  90–100 = prosecution case is overwhelming → will trigger early verdict
+  25–40 = defence moderately favoured
+  11–25 = defence strongly favoured
+  0–10  = acquittal near-certain → will trigger early verdict
+
 This is a moot court simulation for educational purposes.
 """
 

@@ -127,6 +127,13 @@ class JudgeScore(BaseModel):
     )
     reasoning: str = ""
     decision: Literal["another_round", "proceed_to_verdict"] = "proceed_to_verdict"
+    win_probability: int = Field(
+        default=50, ge=0, le=100,
+        description=(
+            "Running case-strength estimate: % chance prosecution prevails at verdict. "
+            "50 = balanced. 90+ = prosecution overwhelming. 10- = acquittal near-certain."
+        ),
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -137,7 +144,7 @@ class JudgeScore(BaseModel):
             if key in data and isinstance(data[key], dict):
                 data = data[key]
                 break
-        # LLM sometimes outputs floats (e.g. 7.5) — round to nearest int
+        # LLM sometimes outputs floats — round to nearest int
         data = dict(data)
         for field in ("prosecution_strength", "defence_strength"):
             v = data.get(field)
@@ -146,6 +153,15 @@ class JudgeScore(BaseModel):
             elif isinstance(v, str):
                 try:
                     data[field] = int(float(v))
+                except (ValueError, TypeError):
+                    pass
+        if "win_probability" in data:
+            v = data["win_probability"]
+            if isinstance(v, float):
+                data["win_probability"] = round(v)
+            elif isinstance(v, str):
+                try:
+                    data["win_probability"] = int(float(v))
                 except (ValueError, TypeError):
                     pass
         return data

@@ -69,11 +69,15 @@ def judge_node(state: GraphState) -> dict:
         '  "defence_strength": 5,\n'
         '  "weak_side": "balanced",\n'
         '  "uncited_statutes": ["statute that should have been cited but wasn\'t"],\n'
-        '  "decision": "another_round"\n'
+        '  "decision": "another_round",\n'
+        '  "win_probability": 50\n'
         "}\n"
         "\nREPLACE prosecution_strength=5 and defence_strength=5 with your actual scores "
         "derived from the reasoning above. The two sides MUST receive different scores unless "
-        "you can explain in reasoning why both argued at exactly the same level."
+        "you can explain in reasoning why both argued at exactly the same level.\n"
+        "REPLACE win_probability=50 with your case-strength estimate (0-100): the % chance "
+        "prosecution prevails at verdict based on the FACTS and LAW — not argument quality. "
+        "Set 90+ only if the prosecution case is objectively overwhelming; 10- only if acquittal is near-certain."
     )
 
     messages = [
@@ -100,8 +104,11 @@ def judge_node(state: GraphState) -> dict:
     score.round_number = current_round
 
     # Hard cap — never trust the LLM to self-terminate on the final round.
-    # If the LLM said "another_round" but we're already at max, override it.
     if current_round >= _MAX_ROUNDS:
+        score.decision = "proceed_to_verdict"
+
+    # Early exit — case is overwhelmingly one-sided, no point continuing rounds.
+    if score.win_probability >= 90 or score.win_probability <= 10:
         score.decision = "proceed_to_verdict"
 
     next_round = current_round + 1 if score.decision == "another_round" else current_round

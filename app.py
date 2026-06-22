@@ -119,15 +119,17 @@ CSS = """
 
 .ny-judge { background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 1.1rem 1.4rem; margin-top: 0; margin-bottom: 0.5rem; animation: slide-in 0.35s ease both; }
 .ny-judge-title { font-size: 0.58rem; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.8rem; }
-.ny-score-row { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.55rem; }
-.ny-score-name { font-size: 0.68rem; color: var(--text-muted); font-weight: 600; width: 100px; flex-shrink: 0; }
-.ny-score-track { flex: 1; height: 6px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; }
-.ny-score-fill-p { height: 100%; background: linear-gradient(90deg, #6B2020, #9E4040); border-radius: 3px; animation: bar-enter 0.6s cubic-bezier(0.16,1,0.3,1) both; }
-.ny-score-fill-d { height: 100%; background: linear-gradient(90deg, #1A3A5C, #2E5F8A); border-radius: 3px; animation: bar-enter-d 0.6s cubic-bezier(0.16,1,0.3,1) both; }
-.ny-score-num { font-size: 0.75rem; font-weight: 700; color: var(--text); width: 36px; text-align: right; flex-shrink: 0; }
+.ny-tow-labels { display: flex; justify-content: space-between; margin-bottom: 0.35rem; }
+.ny-tow-label-p { font-size: 0.72rem; font-weight: 700; color: var(--pros-light); }
+.ny-tow-label-d { font-size: 0.72rem; font-weight: 700; color: var(--def-light); }
+.ny-tow-bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; margin-bottom: 0.35rem; background: rgba(255,255,255,0.05); }
+.ny-tow-pros { background: linear-gradient(90deg, #6B2020, #9E4040); animation: bar-enter 0.7s cubic-bezier(0.16,1,0.3,1) both; }
+.ny-tow-def  { background: linear-gradient(270deg, #1A3A5C, #2E5F8A); flex: 1; animation: bar-enter-d 0.7s cubic-bezier(0.16,1,0.3,1) both; }
+.ny-tow-caption { font-size: 0.62rem; color: var(--text-muted); text-align: center; letter-spacing: 0.06em; margin-bottom: 0.55rem; }
 .ny-decision { display: inline-block; font-size: 0.58rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.2rem 0.6rem; border-radius: 3px; margin-top: 0.5rem; }
-.ny-decision.loop { background: rgba(196,154,60,0.12); color: var(--accent); border: 1px solid rgba(196,154,60,0.3); }
-.ny-decision.stop { background: rgba(46,95,138,0.15); color: #7AABCC; border: 1px solid rgba(46,95,138,0.3); }
+.ny-decision.loop  { background: rgba(196,154,60,0.12); color: var(--accent); border: 1px solid rgba(196,154,60,0.3); }
+.ny-decision.stop  { background: rgba(46,95,138,0.15); color: #7AABCC; border: 1px solid rgba(46,95,138,0.3); }
+.ny-decision.early { background: rgba(46,138,80,0.12); color: #4CAF80; border: 1px solid rgba(46,138,80,0.3); }
 .ny-judge-reason { font-size: 0.8rem; color: var(--text-muted); line-height: 1.65; margin-top: 0.7rem; padding-top: 0.7rem; border-top: 1px solid var(--border); }
 
 .ny-audit { border-radius: 6px; padding: 1rem 1.4rem; border: 1px solid transparent; animation: slide-in 0.35s ease both; }
@@ -366,52 +368,49 @@ def _scoreboard_html() -> str:
     scored = [(i + 1, rd) for i, rd in enumerate(rounds) if rd.get("score")]
     if not scored:
         return ""
-    p_scores = [rd["score"].get("prosecution_strength", 5) for _, rd in scored]
-    d_scores = [rd["score"].get("defence_strength", 5) for _, rd in scored]
-    p_avg = sum(p_scores) / len(p_scores)
-    d_avg = sum(d_scores) / len(d_scores)
-    if p_avg > d_avg + 0.3:
-        lead_text, lead_cls = "PROSECUTION LEADING", "pros"
-    elif d_avg > p_avg + 0.3:
-        lead_text, lead_cls = "DEFENCE LEADING", "def"
+    rounds_done = len(scored)
+    wps = [rd["score"].get("win_probability", 50) for _, rd in scored]
+    latest_wp = wps[-1]
+    d_wp = 100 - latest_wp
+    if latest_wp >= 60:
+        lead_text, lead_cls = "PROSECUTION FAVOURED", "pros"
+    elif latest_wp <= 40:
+        lead_text, lead_cls = "DEFENCE FAVOURED", "def"
     else:
         lead_text, lead_cls = "BALANCED", "bal"
-    rounds_done = len(scored)
-    def _trend(scores: list) -> str:
-        if len(scores) < 2:
+    def _wp_trend(wp_list: list) -> str:
+        if len(wp_list) < 2:
             return ""
-        diff = scores[-1] - scores[-2]
-        if diff > 0:
-            return f"<span style=\'color:#4CAF80;font-size:0.65rem\'> ▲{diff}</span>"
-        if diff < 0:
-            return f"<span style=\'color:#C05050;font-size:0.65rem\'> ▼{abs(diff)}</span>"
+        diff = wp_list[-1] - wp_list[-2]
+        if diff > 2:
+            return f"<span style=\'color:var(--pros-light);font-size:0.65rem\'> ▲{diff}%</span>"
+        if diff < -2:
+            return f"<span style=\'color:var(--def-light);font-size:0.65rem\'> ▼{abs(diff)}%</span>"
         return "<span style=\'color:var(--text-muted);font-size:0.65rem\'> —</span>"
-    history_items = "".join(
-        f"<span class=\'ny-sb-history-round\'>"
-        f"<span class=\'rn\'>R{rn}</span> "
-        f"<span class=\'ps\'>P:{rd[\'score\'].get(\'prosecution_strength\', \'?\')}</span> "
-        f"<span class=\'ds\'>D:{rd[\'score\'].get(\'defence_strength\', \'?\')}</span>"
-        f"</span>"
-        for rn, rd in scored
-    )
+    history_parts = []
+    for rn, rd in scored:
+        wp_val = rd["score"].get("win_probability", 50)
+        history_parts.append(
+            f"<span class='ny-sb-history-round'>"
+            f"<span class='rn'>R{rn}</span> "
+            f"<span class='ps'>P {wp_val}%</span>"
+            f"</span>"
+        )
+    history_items = "".join(history_parts)
     return f"""
-<div class=\'ny-section\'>Judge\'s Running Assessment · {rounds_done} Round{"s" if rounds_done != 1 else ""} Scored</div>
+<div class=\'ny-section\'>Trial Momentum · {rounds_done} Round{"s" if rounds_done != 1 else ""} Scored</div>
 <div class=\'ny-scoreboard\'>
   <div class=\'ny-sb-header\'>
-    <span class=\'ny-sb-title\'>Cumulative Score</span>
+    <span class=\'ny-sb-title\'>Win Probability</span>
     <span class=\'ny-sb-lead {lead_cls}\'>{lead_text}</span>
   </div>
-  <div class=\'ny-sb-bars\'>
-    <div class=\'ny-sb-row\'>
-      <span class=\'ny-sb-name\'>Prosecution</span>
-      <div class=\'ny-sb-track\'><div class=\'ny-sb-fill-p\' style=\'width:{p_avg*10:.0f}%\'></div></div>
-      <span class=\'ny-sb-score-val\'>{p_avg:.1f}<span class=\'ny-sb-trend\'>{_trend(p_scores)}</span></span>
-    </div>
-    <div class=\'ny-sb-row\'>
-      <span class=\'ny-sb-name\'>Defence</span>
-      <div class=\'ny-sb-track\'><div class=\'ny-sb-fill-d\' style=\'width:{d_avg*10:.0f}%\'></div></div>
-      <span class=\'ny-sb-score-val\'>{d_avg:.1f}<span class=\'ny-sb-trend\'>{_trend(d_scores)}</span></span>
-    </div>
+  <div class=\'ny-tow-labels\'>
+    <span class=\'ny-tow-label-p\'>Prosecution · {latest_wp}%{_wp_trend(wps)}</span>
+    <span class=\'ny-tow-label-d\'>{d_wp}% · Defence</span>
+  </div>
+  <div class=\'ny-tow-bar\'>
+    <div class=\'ny-tow-pros\' style=\'width:{latest_wp}%\'></div>
+    <div class=\'ny-tow-def\'></div>
   </div>
   <div class=\'ny-sb-divider\'></div>
   <div class=\'ny-sb-history\'>{history_items}</div>
@@ -419,35 +418,39 @@ def _scoreboard_html() -> str:
 
 
 def _judge_score_html(score: dict) -> str:
-    p = score.get("prosecution_strength", 0)
-    d = score.get("defence_strength", 0)
+    wp = score.get("win_probability", 50)
+    d_wp = 100 - wp
     decision = score.get("decision", "proceed_to_verdict")
-    badge_cls = "loop" if decision == "another_round" else "stop"
-    badge_text = "Another round ordered" if decision == "another_round" else "Proceeding to verdict"
+    is_early = decision == "proceed_to_verdict" and (wp >= 90 or wp <= 10)
+    if decision == "another_round":
+        badge_cls, badge_text = "loop", "Another round ordered"
+    elif is_early:
+        winner = "Prosecution" if wp >= 90 else "Defence"
+        badge_cls, badge_text = "early", f"Early verdict — {winner} case overwhelming"
+    else:
+        badge_cls, badge_text = "stop", "Proceeding to verdict"
     reasoning = score.get("reasoning", "")
     uncited = score.get("uncited_statutes", [])
-    uncited_note = ""
-    if uncited:
-        uncited_note = f" <em>The court expected to hear arguments on: {\', \'.join(uncited[:4])}.</em>"
+    uncited_list = ", ".join(uncited[:4])
+    uncited_note = f" <em>The court expected to hear arguments on: {uncited_list}.</em>" if uncited else ""
     weak = score.get("weak_side", "balanced")
-    weak_note = ""
-    if weak != "balanced":
-        weak_note = f" {\'Prosecution\' if weak == \'prosecution\' else \'Defence\'} counsel\'s arguments were weaker this round."
+    weak_side_name = "Prosecution" if weak == "prosecution" else "Defence"
+    weak_note = f" {weak_side_name} counsel's arguments were weaker this round." if weak != "balanced" else ""
+    rn = score.get("round_number", "?")
     return f"""
-<div class=\'ny-judge\'>
-  <div class=\'ny-judge-title\'>Judge\'s Assessment — Round {score.get(\'round_number\', \'?\')}</div>
-  <div class=\'ny-score-row\'>
-    <span class=\'ny-score-name\'>Prosecution</span>
-    <div class=\'ny-score-track\'><div class=\'ny-score-fill-p\' style=\'width:{p*10}%\'></div></div>
-    <span class=\'ny-score-num\'>{p}/10</span>
+<div class='ny-judge'>
+  <div class='ny-judge-title'>Judge's Assessment — Round {rn}</div>
+  <div class='ny-tow-labels'>
+    <span class='ny-tow-label-p'>Prosecution · {wp}%</span>
+    <span class='ny-tow-label-d'>{d_wp}% · Defence</span>
   </div>
-  <div class=\'ny-score-row\'>
-    <span class=\'ny-score-name\'>Defence</span>
-    <div class=\'ny-score-track\'><div class=\'ny-score-fill-d\' style=\'width:{d*10}%\'></div></div>
-    <span class=\'ny-score-num\'>{d}/10</span>
+  <div class='ny-tow-bar'>
+    <div class='ny-tow-pros' style='width:{wp}%'></div>
+    <div class='ny-tow-def'></div>
   </div>
-  <span class=\'ny-decision {badge_cls}\'>{badge_text}</span>
-  <div class=\'ny-judge-reason\'>{reasoning}{weak_note}{uncited_note}</div>
+  <div class='ny-tow-caption'>Win probability — based on case strength &amp; law</div>
+  <span class='ny-decision {badge_cls}'>{badge_text}</span>
+  <div class='ny-judge-reason'>{reasoning}{weak_note}{uncited_note}</div>
 </div>"""
 
 
@@ -636,26 +639,22 @@ def _conclusion_html() -> str:
     scored = [rd for rd in rounds if rd.get("score")]
     if not scored:
         return ""
-    p_avg = sum(rd["score"].get("prosecution_strength", 5) for rd in scored) / len(scored)
-    d_avg = sum(rd["score"].get("defence_strength", 5) for rd in scored) / len(scored)
+    wps = [rd["score"].get("win_probability", 50) for rd in scored]
+    final_wp = wps[-1]
     ruling = verdict.get("ruling", "inconclusive")
     ruling_display = ruling.upper().replace("_", " ")
-    if p_avg > d_avg + 0.5:
-        balance = "Prosecution outperformed Defence across rounds."
-        adv = "pros"
-    elif d_avg > p_avg + 0.5:
-        balance = "Defence outperformed Prosecution across rounds."
-        adv = "def"
+    if final_wp >= 60:
+        balance = f"Prosecution ended with a {final_wp}% win probability — favoured throughout."
+    elif final_wp <= 40:
+        balance = f"Defence ended with a {100 - final_wp}% win probability — case leaned toward acquittal."
     else:
-        balance = "Both sides performed at a similar level."
-        adv = "even"
+        balance = f"Win probability ended at {final_wp}% — a genuinely contested case."
     turning = None
     for i, rd in enumerate(scored):
-        sc = rd["score"]
-        if sc.get("prosecution_strength", 5) != sc.get("defence_strength", 5):
+        if abs(rd["score"].get("win_probability", 50) - 50) > 10:
             turning = i + 1
             break
-    turn_str = f" The divergence first appeared in Round {turning}." if turning else ""
+    turn_str = f" The balance first shifted decisively in Round {turning}." if turning else ""
     return f"""
 <div class='ny-section'>Trial Summary</div>
 <div class='ny-conclusion'>
@@ -665,12 +664,12 @@ def _conclusion_html() -> str:
       <div class='ny-conclusion-value {ruling}'>{ruling_display}</div>
     </div>
     <div class='ny-conclusion-stat'>
-      <div class='ny-conclusion-label'>Prosecution Avg</div>
-      <div class='ny-conclusion-value'>{p_avg:.1f}/10</div>
+      <div class='ny-conclusion-label'>Final Win Prob</div>
+      <div class='ny-conclusion-value'>{final_wp}% P</div>
     </div>
     <div class='ny-conclusion-stat'>
-      <div class='ny-conclusion-label'>Defence Avg</div>
-      <div class='ny-conclusion-value'>{d_avg:.1f}/10</div>
+      <div class='ny-conclusion-label'>Peak Prob</div>
+      <div class='ny-conclusion-value'>{max(wps)}% P</div>
     </div>
     <div class='ny-conclusion-stat'>
       <div class='ny-conclusion-label'>Rounds</div>
@@ -691,17 +690,20 @@ def _verdict_html(verdict: dict, rounds: list) -> str:
     dissent = verdict.get("dissent_notes", "")
     disclaimer = verdict.get("disclaimer", "AI-generated educational simulation. Not legal advice.")
     scored = [rd for rd in rounds if rd.get("score")]
-    p_avg = sum(rd["score"].get("prosecution_strength", 5) for rd in scored) / len(scored) if scored else 5
-    d_avg = sum(rd["score"].get("defence_strength", 5) for rd in scored) / len(scored) if scored else 5
     n_rounds = len(scored)
+    final_wp = scored[-1]["score"].get("win_probability", 50) if scored else 50
+    final_d_wp = 100 - final_wp
+    sep = " · "
     cite_html = ""
     if statutes:
-        cite_html += f"<div class=\'ny-verdict-cites\'><strong>Statutes relied on:</strong> {\'·\'.join(statutes[:6])}</div>"
+        statutes_str = sep.join(statutes[:6])
+        cite_html += f"<div class='ny-verdict-cites'><strong>Statutes relied on:</strong> {statutes_str}</div>"
     if precedents:
-        cite_html += f"<div class=\'ny-verdict-cites\'><strong>Precedents:</strong> {\'·\'.join(precedents[:5])}</div>"
+        precedents_str = sep.join(precedents[:5])
+        cite_html += f"<div class='ny-verdict-cites'><strong>Precedents:</strong> {precedents_str}</div>"
     dissent_html = ""
     if dissent:
-        dissent_html = f"<div class=\'ny-verdict-cites\' style=\'margin-top:0.6rem;color:var(--text-muted);font-style:italic\'>{dissent}</div>"
+        dissent_html = f"<div class='ny-verdict-cites' style='margin-top:0.6rem;color:var(--text-muted);font-style:italic'>{dissent}</div>"
     return f"""
 <div class=\'ny-section\'>Final Verdict · {n_rounds} Round{"s" if n_rounds != 1 else ""}</div>
 <div class=\'ny-verdict-wrap\'>
@@ -716,15 +718,10 @@ def _verdict_html(verdict: dict, rounds: list) -> str:
   </div>
   <div class=\'ny-verdict-body\'>
     <div class=\'ny-verdict-score-row\'>
-      <div class=\'ny-verdict-score-item\'>
-        <div class=\'ny-verdict-score-side pros\'>Prosecution — {n_rounds}-Round Average</div>
-        <div class=\'ny-verdict-score-bar\'><div class=\'ny-verdict-score-bar-fill-p\' style=\'width:{p_avg*10:.0f}%\'></div></div>
-        <div class=\'ny-verdict-score-num\'>{p_avg:.1f} / 10</div>
-      </div>
-      <div class=\'ny-verdict-score-item\'>
-        <div class=\'ny-verdict-score-side def\'>Defence — {n_rounds}-Round Average</div>
-        <div class=\'ny-verdict-score-bar\'><div class=\'ny-verdict-score-bar-fill-d\' style=\'width:{d_avg*10:.0f}%\'></div></div>
-        <div class=\'ny-verdict-score-num\'>{d_avg:.1f} / 10</div>
+      <div class=\'ny-verdict-score-item\' style=\'flex:none;width:100%\'>
+        <div class=\'ny-verdict-score-side pros\' style=\'margin-bottom:0.5rem\'>Final Win Probability</div>
+        <div class=\'ny-tow-labels\' style=\'margin-bottom:0.3rem\'><span class=\'ny-tow-label-p\'>Prosecution · {final_wp}%</span><span class=\'ny-tow-label-d\'>{final_d_wp}% · Defence</span></div>
+        <div class=\'ny-tow-bar\' style=\'height:12px\'><div class=\'ny-tow-pros\' style=\'width:{final_wp}%\'></div><div class=\'ny-tow-def\'></div></div>
       </div>
     </div>
     <div class=\'ny-verdict-reasoning\'>{reasoning}</div>
@@ -875,14 +872,16 @@ def main() -> None:
         st.rerun()
 
     elif st.session_state.phase == "awaiting_hitl":
-        st.markdown(f"<p style=\'color:var(--text-muted);font-size:0.8rem;margin-bottom:0.25rem\'>{st.session_state.facts_raw[:220]}{\'…\' if len(st.session_state.facts_raw) > 220 else \'\'}</p>", unsafe_allow_html=True)
+        facts_preview = st.session_state.facts_raw[:220] + ("…" if len(st.session_state.facts_raw) > 220 else "")
+        st.markdown(f"<p style='color:var(--text-muted);font-size:0.8rem;margin-bottom:0.25rem'>{facts_preview}</p>", unsafe_allow_html=True)
         st.markdown(_progress_html(), unsafe_allow_html=True)
         _render_all()
         audit = st.session_state.audit_result or {}
         hallucinated = audit.get("hallucinated_citations", [])
         caution = ""
         if hallucinated:
-            caution = (f"<br><strong style=\'color:#C05050\'>Caution:</strong> The following citations were not verified: {\', \'.join(hallucinated)}")
+            hallucinated_str = ", ".join(hallucinated)
+            caution = f"<br><strong style='color:#C05050'>Caution:</strong> The following citations were not verified: {hallucinated_str}"
         st.markdown(f"""
 <div class=\'ny-section\'>Verdict Gate</div>
 <div class=\'ny-hitl\'>
