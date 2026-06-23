@@ -13,7 +13,17 @@ def _retrieve_context(case_file, query_extra: str = "") -> str:
     from rag.precedent_search import search_precedents
 
     regime = case_file.code_regime
-    base_query = f"{case_file.offence_type} {query_extra} defence acquittal mens rea {regime}"
+    # Query the statute index with the offence itself. Role/era words like
+    # "defence acquittal mens rea BNS" are dense-retrieval noise — they pull
+    # procedural and boilerplate sections ahead of the substantive offence. The
+    # regime is already applied as a metadata filter, so it doesn't belong in
+    # the query text. Both advocates retrieve the same offence statutes; the
+    # adversarial framing comes from the prompts and rebuttal injection.
+    base_query = (
+        f"{case_file.offence_type} {query_extra}".strip()
+        or " ".join(case_file.legal_questions or [])
+        or case_file.facts[:200]
+    )
     chunks = retrieve(base_query, code_regime=regime, top_k=3)
     statute_text = "\n\n".join(
         f"[{c.source_act} — {c.section_id}]\n{c.text[:400]}" for c in chunks
