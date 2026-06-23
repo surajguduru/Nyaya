@@ -9,6 +9,11 @@ from agents.prompts import JUDGE_SYSTEM, VERDICT_SYSTEM
 from graph.state import GraphState, JudgeScore, Verdict
 from utils.llm import get_structured_llm
 
+# Percentage points of win probability per point of average strength margin.
+# At 7, a clear ~4.3-point average lead reaches the 80/20 early-exit threshold,
+# while a 1-point lean reads as ~57% — "leaning", not decisive.
+_WIN_PROB_MARGIN_SCALE = 7
+
 
 def _format_transcript(transcript: list[dict]) -> str:
     lines = []
@@ -104,21 +109,22 @@ def judge_node(state: GraphState) -> dict:
     if current_round >= _MAX_ROUNDS:
         score.decision = "proceed_to_verdict"
 
-    # Compute win_probability deterministically from cumulative score differentials.
-    # Start at 50 (neutral) and add 5 percentage points per score-point advantage
-    # for every round played so far (including this one). This ensures the probability
-    # actually moves each round instead of being re-anchored by the LLM every time.
-    # De-duplicate by round before summing: when this is a re-deliberation of an
-    # already-scored round (HITL rejection routes back here), the new score must
-    # REPLACE the round's prior contribution, not add to it — otherwise every
-    # rejection counts the round's margin twice and inflates win_probability.
+    # Win probability is the running BALANCE of the case — the average per-round
+    # strength margin mapped onto a 5-95 scale — not a cumulative tally. A steady
+    # modest edge therefore reads as "leaning" rather than runaway to 95%, keeping
+    # it consistent with the margin-based confidence and the verdict's own tone.
+    # (A cumulative sum let a small sustained edge balloon to 95% over many rounds
+    # while confidence stayed "moderate", which looked contradictory.)
+    # De-duplicate by round first: if a round was re-scored, the new score must
+    # REPLACE the prior entry rather than be averaged in twice.
     by_round: dict = {}
     for s in all_scores + [score.model_dump()]:
         by_round[s.get("round_number")] = s
-    running_wp = 50
-    for s in by_round.values():
-        running_wp += (s.get("prosecution_strength", 5) - s.get("defence_strength", 5)) * 5
-    score.win_probability = max(5, min(95, round(running_wp)))
+    rounds_so_far = list(by_round.values())
+    rounds_count = len(rounds_so_far)
+    prosecution_mean = sum(s.get("prosecution_strength", 5) for s in rounds_so_far) / rounds_count
+    defence_mean = sum(s.get("defence_strength", 5) for s in rounds_so_far) / rounds_count
+    score.win_probability = max(5, min(95, round(50 + (prosecution_mean - defence_mean) * _WIN_PROB_MARGIN_SCALE)))
 
     # Early exit — case is decisively one-sided, further rounds won't change the outcome.
     if score.win_probability >= 80 or score.win_probability <= 20:

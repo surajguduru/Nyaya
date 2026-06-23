@@ -83,8 +83,8 @@ Fact Scenario
 | Code regime selection | **Deterministic** | `offence_date < 2024-07-01 → IPC` — pure Python rule |
 | Statute retrieval | **Deterministic** | Chroma vector search with metadata filter |
 | Advocacy (Prosecution/Defence) | **AI** | Requires legal reasoning, argument construction, rebuttal |
-| Round scoring (Judge) | **AI** | Requires evaluative judgment over transcript — emits a 1–10 strength score per side |
-| Win probability | **Deterministic** | `50 + Σ (prosecution_strength − defence_strength) × 5` over rounds, clamped to [5, 95] — computed in Python, never by the LLM |
+| Round scoring (Judge) | **AI** | Scores each side's **case strength on the merits** (who is winning, dispositive points weighted heavily) — not rhetorical polish |
+| Win probability | **Deterministic** | `50 + (mean prosecution_strength − mean defence_strength) × 7`, clamped to [5, 95] — the running *balance* of the case, computed in Python, never by the LLM |
 | Early-exit decision | **Deterministic** | Trial proceeds to verdict once win probability reaches ≥ 80 / ≤ 20, or at the `MAX_ROUNDS` cap |
 | Citation validation (Auditor) | **Deterministic** | Exact metadata lookup in Chroma — no LLM involved |
 | Verdict rendering | **AI** | Requires synthesis of all rounds into a reasoned conclusion |
@@ -95,13 +95,14 @@ Fact Scenario
 
 ## Scoring, Win Probability & Confidence
 
-The trial's quantitative signals are **deliberately deterministic** — the LLM Judge supplies only the qualitative input (each side's 1–10 strength score per round); every number derived from it is computed in Python so the trajectory is reproducible and explainable.
+The trial's quantitative signals are **deliberately deterministic** — the LLM Judge supplies only the qualitative input (each side's 1–10 *case-strength* score per round, where dispositive points like inadmissible evidence or a complete defence dominate); every number derived from it is computed in Python so the trajectory is reproducible and explainable. The three signals are designed to be mutually consistent: they all flow from the same merit-based strength scores.
 
-- **Win probability** starts at 50 (neutral) and accumulates each round:
-  `win_probability = 50 + Σ (prosecution_strength − defence_strength) × 5`, clamped to `[5, 95]`.
-  Because strengths are integers and each margin-point is worth 5 points, the bar moves in 5% steps — a typical 1-point round edge shifts it ±5%. This is by design: an earlier version let the LLM emit the probability directly and it kept re-anchoring to the same value every round.
-- **Early exit:** once win probability reaches **≥ 80 or ≤ 20**, the case is decisively one-sided and the Judge proceeds straight to verdict — no further rounds. `MAX_ROUNDS` is the hard upper bound.
-- **Verdict confidence** reflects *how decisive* the win was, scaled from the **average per-round strength margin** (`abs(p_avg − d_avg)`): roughly 1-point margin → low, 2 → moderate, 3 → high, 4+ → overwhelming. It is **not** derived from the final win probability — because the early-exit always halts a decisive case at exactly 80, doing so would collapse confidence to a constant 6 regardless of how lopsided the trial actually was.
+- **Win probability** is the running **balance** of the case, not a cumulative tally:
+  `win_probability = 50 + (mean prosecution_strength − mean defence_strength) × 7`, clamped to `[5, 95]`.
+  Using the *average* margin (rather than summing every round) means a steady modest edge reads as a lean (~60–65%) instead of ballooning to 95% over many rounds — so the headline figure matches the confidence and the verdict's own tone.
+- **Early exit:** once win probability reaches **≥ 80 or ≤ 20** (an average margin of ~4.3+), the case is decisively one-sided and the Judge proceeds straight to verdict — no further rounds. `MAX_ROUNDS` is the hard upper bound.
+- **Verdict confidence** reflects *how decisive* the win was, scaled from the same **average per-round strength margin** (`abs(p_avg − d_avg)`): roughly 1-point margin → low, 2 → moderate, 3 → high, 4+ → overwhelming. Because both win probability and confidence derive from the average margin, a contested case shows a moderate probability *and* moderate confidence, while a dispositive one shows an extreme probability *and* high confidence.
+- **Ruling consistency:** the final verdict is given the running win probability and instructed to rule in the direction it indicates (departures must be justified in the dissent), so the ruling, the probability, and the confidence never contradict one another.
 
 ---
 
