@@ -137,8 +137,20 @@ class Argument(BaseModel):
 
 class JudgeScore(BaseModel):
     round_number: int = 1
-    prosecution_strength: int = Field(default=5, ge=1, le=10)
-    defence_strength: int = Field(default=5, ge=1, le=10)
+    prosecution_strength: int = Field(
+        default=5, ge=1, le=10,
+        description=(
+            "Strength of the prosecution's CASE on the merits this round (likelihood of a liable "
+            "verdict) — not rhetorical polish. A dispositive point against it forces a low score."
+        ),
+    )
+    defence_strength: int = Field(
+        default=5, ge=1, le=10,
+        description=(
+            "Strength of the defence's CASE on the merits this round (likelihood of acquittal) — "
+            "not rhetorical polish. A dispositive point in its favour forces a high score."
+        ),
+    )
     weak_side: Literal["prosecution", "defence", "balanced"] = "balanced"
     uncited_statutes: list[str] = Field(
         default_factory=list,

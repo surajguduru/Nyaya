@@ -60,20 +60,21 @@ def judge_node(state: GraphState) -> dict:
     _schema = (
         "{\n"
         f'  "round_number": {current_round},\n'
-        '  "reasoning": "EVALUATE FIRST (required): '
-        '(a) List specific claims prosecution made and rate them — are they fact-grounded? statutes cited correctly? '
-        '(b) List specific claims defence made and rate them similarly. '
-        '(c) Compare rebuttal quality — who engaged with the opponent\'s actual points? '
-        '(d) State the final score each side deserves and WHY it differs from any prior round score.",\n'
+        '  "reasoning": "DECIDE WHO IS WINNING THE CASE (required): '
+        '(a) Identify any dispositive or threshold issue in play (admissibility, unlawful procedure, burden of proof, a complete defence) and which side it favours. '
+        '(b) For each side, state whether the elements of the offence are made out or defeated on the facts. '
+        '(c) Weigh the balance — who is currently winning on the merits, and can the other side still recover? '
+        '(d) Give each side a case-strength score (1-10) reflecting that balance, and explain any change from the prior round.",\n'
         '  "prosecution_strength": 5,\n'
         '  "defence_strength": 5,\n'
         '  "weak_side": "balanced",\n'
         '  "uncited_statutes": ["statute that should have been cited but wasn\'t"],\n'
         '  "decision": "another_round"\n'
         "}\n"
-        "\nREPLACE prosecution_strength=5 and defence_strength=5 with your actual scores "
-        "derived from the reasoning above. The two sides MUST receive different scores unless "
-        "you can explain in reasoning why both argued at exactly the same level."
+        "\nREPLACE prosecution_strength=5 and defence_strength=5 with scores reflecting which side "
+        "is winning the CASE (a side holding a dispositive point scores high, its opponent low, "
+        "however polished the opponent's arguments). The two scores MUST differ unless the merits "
+        "are genuinely even."
     )
 
     messages = [
@@ -186,6 +187,11 @@ def verdict_node(state: GraphState) -> dict:
         for s in scores
     )
 
+    # Running merits-based win probability after the final round — the ruling must
+    # be consistent with which side this says prevailed (the scores already weight
+    # dispositive points), so the verdict and the displayed probability agree.
+    final_wp = scores[-1].get("win_probability", 50) if scores else 50
+
     _schema = (
         "{\n"
         '  "reasoning": "Which side proved their case and why — cite the key statutes and facts.",\n'
@@ -209,7 +215,12 @@ def verdict_node(state: GraphState) -> dict:
                 f"Regime: {case_file.code_regime}\n\n"
                 f"Trial ({len(scores)} rounds):\n{_compact_transcript(transcript)}\n\n"
                 f"Scores:\n{score_lines}\n"
-                f"Prosecution avg {p_avg:.1f}/10 · Defence avg {d_avg:.1f}/10\n\n"
+                f"Prosecution avg {p_avg:.1f}/10 · Defence avg {d_avg:.1f}/10\n"
+                f"Running win probability after the final round: prosecution {final_wp}% / "
+                f"defence {100 - final_wp}%.\n"
+                f"Your ruling MUST be consistent with this balance — prosecution ahead (>55%) → "
+                f"'liable', defence ahead (<45%) → 'not_liable', otherwise 'inconclusive'. If you "
+                f"depart from it, explain why in dissent_notes.\n\n"
                 f"Return ONLY valid JSON:\n{_schema}"
             )
         ),
