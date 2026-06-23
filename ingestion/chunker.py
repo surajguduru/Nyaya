@@ -7,6 +7,8 @@ from pathlib import Path
 
 import fitz  # PyMuPDF
 
+from ingestion.keywords import keywords_for
+
 
 @dataclass
 class TextChunk:
@@ -86,13 +88,20 @@ def _chunk_statute(
         first_line = section_body.split("\n")[0][:120].strip()
         section_title = re.sub(r"[—\-]+$", "", first_line).strip()
 
+        # Enrich with lay synonyms so plain-language fact-pattern queries match
+        # the right offence (e.g. "stealing" -> the theft section). Computed once
+        # per section from the title + body and applied to every sub-chunk.
+        keywords = keywords_for(section_title, section_body)
+        keyword_line = f"Keywords: {', '.join(keywords)}. " if keywords else ""
+
         # Long sections are split into overlapping sub-chunks rather than
-        # truncated at 1500 chars. Every sub-chunk keeps the same section_id and
-        # section_title (so citation lookup by section_id is unaffected) and
-        # records its 1-based part index.
+        # truncated at 1500 chars. Every sub-chunk leads with the section id +
+        # title (and keyword line) so the section's identity is present even in
+        # later parts; all parts keep the same section_id (so citation lookup by
+        # section_id is unaffected) and record a 1-based part index.
         windows = _window_text(section_body, _SECTION_WINDOW, _SECTION_OVERLAP)
         for part_idx, part_body in enumerate(windows, start=1):
-            chunk_text = f"{section_id}. {part_body}"
+            chunk_text = f"{section_id}. {section_title}. {keyword_line}{part_body}"
             chunks.append(
                 TextChunk(
                     text=chunk_text,
@@ -103,6 +112,7 @@ def _chunk_statute(
                         "code_regime": code_regime,
                         "year": year,
                         "part": str(part_idx),
+                        "keywords": ", ".join(keywords),
                     },
                 )
             )
