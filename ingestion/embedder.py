@@ -16,8 +16,15 @@ _BATCH_SIZE = 100
 
 
 def _chunk_id(chunk: TextChunk) -> str:
-    """Deterministic ID so re-runs don't duplicate entries."""
-    key = f"{chunk.metadata.get('source_act')}|{chunk.metadata.get('section_id')}|{chunk.text[:80]}"
+    """Deterministic ID so re-runs don't duplicate entries.
+
+    Includes the sub-chunk `part`: long sections are split into parts that all
+    lead with the same "Section N. <title>. Keywords: ..." prefix, so a key
+    based only on text[:80] would collide and the dedup step would silently drop
+    every part after the first — undoing the long-section split.
+    """
+    meta = chunk.metadata
+    key = f"{meta.get('source_act')}|{meta.get('section_id')}|{meta.get('part', '')}|{chunk.text[:80]}"
     return hashlib.md5(key.encode()).hexdigest()
 
 
