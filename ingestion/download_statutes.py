@@ -27,12 +27,14 @@ HEADERS = {
 # type: "html" → fetch Indian Kanoon page, extract judgments div, save as .txt
 STATUTE_SOURCES = [
     {
+        # Sourced from Indian Kanoon (clean English full text), not the egazette
+        # PDF: the official gazette is a bilingual Hindi/English two-column scan
+        # that PyMuPDF cannot section-split, so it fell back to meaningless "Para"
+        # chunks. The Indian Kanoon HTML parses into all 358 real sections.
         "name": "BNS 2023",
-        "filename": "bns_2023.pdf",
-        "type": "pdf",
-        "urls": [
-            "https://egazette.gov.in/WriteReadData/2023/250986.pdf",
-        ],
+        "filename": "bns_2023.txt",
+        "type": "html",
+        "urls": ["https://indiankanoon.org/doc/149679501/"],
         "code_regime": "BNS",
         "year": 2023,
     },
