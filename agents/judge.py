@@ -9,6 +9,11 @@ from agents.prompts import JUDGE_SYSTEM, VERDICT_SYSTEM
 from graph.state import GraphState, JudgeScore, Verdict
 from utils.llm import get_structured_llm
 
+# Percentage points of win probability per point of average strength margin.
+# At 7, a clear ~4.3-point average lead reaches the 80/20 early-exit threshold,
+# while a 1-point lean reads as ~57% — "leaning", not decisive.
+_WIN_PROB_MARGIN_SCALE = 7
+
 
 def _format_transcript(transcript: list[dict]) -> str:
     lines = []
@@ -60,20 +65,21 @@ def judge_node(state: GraphState) -> dict:
     _schema = (
         "{\n"
         f'  "round_number": {current_round},\n'
-        '  "reasoning": "EVALUATE FIRST (required): '
-        '(a) List specific claims prosecution made and rate them — are they fact-grounded? statutes cited correctly? '
-        '(b) List specific claims defence made and rate them similarly. '
-        '(c) Compare rebuttal quality — who engaged with the opponent\'s actual points? '
-        '(d) State the final score each side deserves and WHY it differs from any prior round score.",\n'
+        '  "reasoning": "DECIDE WHO IS WINNING THE CASE (required): '
+        '(a) Identify any dispositive or threshold issue in play (admissibility, unlawful procedure, burden of proof, a complete defence) and which side it favours. '
+        '(b) For each side, state whether the elements of the offence are made out or defeated on the facts. '
+        '(c) Weigh the balance — who is currently winning on the merits, and can the other side still recover? '
+        '(d) Give each side a case-strength score (1-10) reflecting that balance, and explain any change from the prior round.",\n'
         '  "prosecution_strength": 5,\n'
         '  "defence_strength": 5,\n'
         '  "weak_side": "balanced",\n'
         '  "uncited_statutes": ["statute that should have been cited but wasn\'t"],\n'
         '  "decision": "another_round"\n'
         "}\n"
-        "\nREPLACE prosecution_strength=5 and defence_strength=5 with your actual scores "
-        "derived from the reasoning above. The two sides MUST receive different scores unless "
-        "you can explain in reasoning why both argued at exactly the same level."
+        "\nREPLACE prosecution_strength=5 and defence_strength=5 with scores reflecting which side "
+        "is winning the CASE (a side holding a dispositive point scores high, its opponent low, "
+        "however polished the opponent's arguments). The two scores MUST differ unless the merits "
+        "are genuinely even."
     )
 
     messages = [
@@ -103,21 +109,22 @@ def judge_node(state: GraphState) -> dict:
     if current_round >= _MAX_ROUNDS:
         score.decision = "proceed_to_verdict"
 
-    # Compute win_probability deterministically from cumulative score differentials.
-    # Start at 50 (neutral) and add 5 percentage points per score-point advantage
-    # for every round played so far (including this one). This ensures the probability
-    # actually moves each round instead of being re-anchored by the LLM every time.
-    # De-duplicate by round before summing: when this is a re-deliberation of an
-    # already-scored round (HITL rejection routes back here), the new score must
-    # REPLACE the round's prior contribution, not add to it — otherwise every
-    # rejection counts the round's margin twice and inflates win_probability.
+    # Win probability is the running BALANCE of the case — the average per-round
+    # strength margin mapped onto a 5-95 scale — not a cumulative tally. A steady
+    # modest edge therefore reads as "leaning" rather than runaway to 95%, keeping
+    # it consistent with the margin-based confidence and the verdict's own tone.
+    # (A cumulative sum let a small sustained edge balloon to 95% over many rounds
+    # while confidence stayed "moderate", which looked contradictory.)
+    # De-duplicate by round first: if a round was re-scored, the new score must
+    # REPLACE the prior entry rather than be averaged in twice.
     by_round: dict = {}
     for s in all_scores + [score.model_dump()]:
         by_round[s.get("round_number")] = s
-    running_wp = 50
-    for s in by_round.values():
-        running_wp += (s.get("prosecution_strength", 5) - s.get("defence_strength", 5)) * 5
-    score.win_probability = max(5, min(95, round(running_wp)))
+    rounds_so_far = list(by_round.values())
+    rounds_count = len(rounds_so_far)
+    prosecution_mean = sum(s.get("prosecution_strength", 5) for s in rounds_so_far) / rounds_count
+    defence_mean = sum(s.get("defence_strength", 5) for s in rounds_so_far) / rounds_count
+    score.win_probability = max(5, min(95, round(50 + (prosecution_mean - defence_mean) * _WIN_PROB_MARGIN_SCALE)))
 
     # Early exit — case is decisively one-sided, further rounds won't change the outcome.
     if score.win_probability >= 80 or score.win_probability <= 20:
@@ -186,6 +193,11 @@ def verdict_node(state: GraphState) -> dict:
         for s in scores
     )
 
+    # Running merits-based win probability after the final round — the ruling must
+    # be consistent with which side this says prevailed (the scores already weight
+    # dispositive points), so the verdict and the displayed probability agree.
+    final_wp = scores[-1].get("win_probability", 50) if scores else 50
+
     _schema = (
         "{\n"
         '  "reasoning": "Which side proved their case and why — cite the key statutes and facts.",\n'
@@ -209,7 +221,12 @@ def verdict_node(state: GraphState) -> dict:
                 f"Regime: {case_file.code_regime}\n\n"
                 f"Trial ({len(scores)} rounds):\n{_compact_transcript(transcript)}\n\n"
                 f"Scores:\n{score_lines}\n"
-                f"Prosecution avg {p_avg:.1f}/10 · Defence avg {d_avg:.1f}/10\n\n"
+                f"Prosecution avg {p_avg:.1f}/10 · Defence avg {d_avg:.1f}/10\n"
+                f"Running win probability after the final round: prosecution {final_wp}% / "
+                f"defence {100 - final_wp}%.\n"
+                f"Your ruling MUST be consistent with this balance — prosecution ahead (>55%) → "
+                f"'liable', defence ahead (<45%) → 'not_liable', otherwise 'inconclusive'. If you "
+                f"depart from it, explain why in dissent_notes.\n\n"
                 f"Return ONLY valid JSON:\n{_schema}"
             )
         ),
