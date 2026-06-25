@@ -175,6 +175,34 @@ def _act_from_citation(citation: str, expected_regime: str | None) -> str | None
     return None
 
 
+def _resolve_citation(
+    citation: str, expected_regime: str | None
+) -> tuple[str | None, str | None]:
+    """Parse a citation into ``(section_id, act)`` for a corpus metadata lookup.
+
+    Returns ``(None, None)`` when the citation carries no section/article number.
+    ``act`` is the SPECIFIC act the citation names (so "BNS Section 378" resolves
+    to the BNS 2023, where it does not exist); it is ``None`` only when neither
+    the citation nor ``expected_regime`` names a known act, leaving the lookup
+    act-agnostic. Articles are pinned to the Constitution directly.
+    """
+    article_match = re.search(r"[Aa]rticle\s+(\d+[A-Za-z]*)", citation)
+    if article_match:
+        return f"Article {article_match.group(1)}", "Constitution of India"
+
+    match = re.search(r"[Ss]ection\s+(\d+[A-Za-z]*)", citation)
+    if not match:
+        return None, None
+    return f"Section {match.group(1)}", _act_from_citation(citation, expected_regime)
+
+
+def _section_where(section_id: str, act: str | None) -> dict:
+    """Chroma ``where`` filter pinning a section to its act when one is known."""
+    if act:
+        return {"$and": [{"section_id": section_id}, {"source_act": act}]}
+    return {"section_id": section_id}
+
+
 def section_exists(citation: str, expected_regime: str | None = None) -> bool:
     """Deterministically check if a citation exists in the corpus by metadata lookup.
 
@@ -190,24 +218,11 @@ def section_exists(citation: str, expected_regime: str | None = None) -> bool:
     if collection.count() == 0:
         return False
 
-    article_match = re.search(r"[Aa]rticle\s+(\d+[A-Za-z]*)", citation)
-    if article_match:
-        section_id = f"Article {article_match.group(1)}"
-        # Articles live only in the Constitution, so pin the act directly.
-        act = "Constitution of India"
-    else:
-        match = re.search(r"[Ss]ection\s+(\d+[A-Za-z]*)", citation)
-        if not match:
-            return False
-        section_id = f"Section {match.group(1)}"
-        act = _act_from_citation(citation, expected_regime)
+    section_id, act = _resolve_citation(citation, expected_regime)
+    if section_id is None:
+        return False
 
-    if act:
-        where: dict = {"$and": [{"section_id": section_id}, {"source_act": act}]}
-    else:
-        where = {"section_id": section_id}
-
-    results = collection.get(where=where, limit=1)
+    results = collection.get(where=_section_where(section_id, act), limit=1)
     return len(results.get("ids", [])) > 0
 
 
