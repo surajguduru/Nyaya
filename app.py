@@ -1034,6 +1034,21 @@ assert SAMPLE_DATES.keys() == SAMPLE_CASES.keys(), (
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 
+def _facts_panel(facts: str) -> None:
+    """Show the full case description in a collapsible panel once the court is
+    convened. Expanded by default so the facts are visible, but collapsible to
+    tuck the (often long) text away during the trial. Replaces the old truncated
+    220-char preview."""
+    import html as _html
+
+    with st.expander("Case facts", expanded=True):
+        st.markdown(
+            "<p style='color:var(--text-muted);font-size:0.85rem;line-height:1.6;"
+            f"white-space:pre-wrap;margin:0'>{_html.escape(facts)}</p>",
+            unsafe_allow_html=True,
+        )
+
+
 def main() -> None:
     _init_state()
     st.markdown(CSS, unsafe_allow_html=True)
@@ -1111,13 +1126,12 @@ def main() -> None:
                 st.rerun()
 
     elif st.session_state.phase == "running":
-        st.markdown(f"<p style='color:var(--text-muted);font-size:0.8rem;margin-bottom:1.5rem'>{st.session_state.facts_raw[:220]}{'…' if len(st.session_state.facts_raw) > 220 else ''}</p>", unsafe_allow_html=True)
+        _facts_panel(st.session_state.facts_raw)
         _run_pre_hitl(st.session_state.facts_raw, st.session_state.offence_date)
         st.rerun()
 
     elif st.session_state.phase == "awaiting_hitl":
-        facts_preview = st.session_state.facts_raw[:220] + ("…" if len(st.session_state.facts_raw) > 220 else "")
-        st.markdown(f"<p style='color:var(--text-muted);font-size:0.8rem;margin-bottom:0.25rem'>{facts_preview}</p>", unsafe_allow_html=True)
+        _facts_panel(st.session_state.facts_raw)
         st.markdown(_progress_html(), unsafe_allow_html=True)
         _render_all()
         audit = st.session_state.audit_result or {}
@@ -1158,6 +1172,7 @@ def main() -> None:
         st.rerun()
 
     elif st.session_state.phase == "done":
+        _facts_panel(st.session_state.facts_raw)
         st.markdown(_progress_html(), unsafe_allow_html=True)
         _render_all()
         if st.session_state.verdict:
