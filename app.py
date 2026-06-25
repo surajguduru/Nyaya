@@ -1,6 +1,7 @@
 """Nyāya — Adversarial Legal Reasoning · Streamlit application."""
 from __future__ import annotations
 
+import re
 import sys
 import uuid
 from datetime import date
@@ -273,6 +274,37 @@ def _pills_html(items: list[str], cls: str = "ny-pill") -> str:
     return " ".join(f"<span class='{cls}'>{s}</span>" for s in items[:6])
 
 
+# Canonical citation label: a code (BNS/BNSS/BSA/IPC) before a Section number, or
+# a bare Article number. Longest codes first so "BNSS" isn't shadowed by "BNS".
+_CITE_LABEL_RE = re.compile(
+    r"\b(BNSS|BNS|BSA|IPC|Constitution)?\s*"
+    r"((?:Section|Article)\s+\d+[A-Za-z]*)",
+    re.IGNORECASE,
+)
+
+
+def _statute_label(citation: str) -> str:
+    """Reduce a cited statute string to its bare label for display.
+
+    The advocate's stored citation sometimes carries the section title (or even
+    the whole section text) tacked on — 'BNS Section 305 — Theft in a dwelling
+    house … Whoever commits theft'. We show only the label, e.g. 'BNS Section
+    305' / 'Article 21'. The stored statutes_cited string is left untouched, so
+    the citation audit still validates the exact value the advocate produced.
+    Falls back to the original text when no Section/Article number is present.
+    """
+    s = (citation or "").strip()
+    m = _CITE_LABEL_RE.search(s)
+    if not m:
+        return s
+    ref = re.sub(r"\s+", " ", m.group(2)).strip().title()  # "section 305" -> "Section 305"
+    code = (m.group(1) or "").strip()
+    if not code:
+        return ref
+    code = "Constitution" if code.upper() == "CONSTITUTION" else code.upper()
+    return f"{code} {ref}"
+
+
 def _case_file_html(cf: dict) -> str:
     regime = cf.get("code_regime", "BNS")
     regime_cls = "bns" if regime == "BNS" else "ipc"
@@ -313,7 +345,7 @@ def _argument_card_html(arg: dict, side: str) -> str:
     if statutes or precedents:
         cite_html = f"""
 <div class='ny-cite-row'>
-  <span class='ny-cite-label'>Statutes</span>{_pills_html(statutes, 'ny-pill')}
+  <span class='ny-cite-label'>Statutes</span>{_pills_html([_statute_label(s) for s in statutes], 'ny-pill')}
 </div>
 <div class='ny-cite-row' style='margin-top:0.3rem'>
   <span class='ny-cite-label'>Precedents</span>{_pills_html(precedents, 'ny-prec-pill')}
