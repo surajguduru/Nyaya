@@ -837,8 +837,8 @@ def _run_post_hitl(approved: bool) -> None:
 
 SAMPLE_CASES = {
     "Select a sample case…": "",
-    "Theft with CCTV — BNS (Aug 2024)": (
-        "On 15 August 2024, the accused Ravi Kumar, aged 27, entered a mobile phone retail "
+    "Theft with CCTV": (
+        "The accused Ravi Kumar, aged 27, entered a mobile phone retail "
         "shop — 'Smart Zone Electronics' — in Koramangala, Bengaluru at approximately 3:42 PM. "
         "The shop was busy with three other customers present. The shop owner, Mr. Arjun Shetty, "
         "was attending to a customer at the billing counter. Ravi picked up two Samsung Galaxy S24 "
@@ -850,8 +850,8 @@ SAMPLE_CASES = {
         "he 'forgot to pay' and had intended to return. No prior criminal record was found. No "
         "violence was used. The phones were in working condition when recovered."
     ),
-    "Dowry death — IPC (Mar 2024)": (
-        "On 14 March 2024, Sunita Devi, aged 24, was found dead at her matrimonial home in "
+    "Dowry death": (
+        "Sunita Devi, aged 24, was found dead at her matrimonial home in "
         "Patna, Bihar. The official cause of death was strangulation, confirmed by post-mortem "
         "conducted at Patna Medical College on 15 March 2024. Sunita had been married to the "
         "accused Rajesh Kumar for 18 months. Her parents filed a complaint stating that Rajesh "
@@ -863,8 +863,8 @@ SAMPLE_CASES = {
         "Sunita died by suicide due to depression. No suicide note was found. Forensic examination "
         "found Sunita's skin cells under Rajesh's fingernails."
     ),
-    "Grievous hurt — circumstantial (BNS)": (
-        "On 3 November 2024, Mr. Harish Goel, aged 45, was found unconscious near the rear "
+    "Grievous hurt — circumstantial": (
+        "Mr. Harish Goel, aged 45, was found unconscious near the rear "
         "exit of Centurion Mall's underground parking lot in Hyderabad at 10:15 PM with severe "
         "head injuries. He remains in a coma. The accused, Vikram Singh aged 38, was Harish's "
         "business partner with whom he had a documented financial dispute over Rs 40 lakh. A "
@@ -874,8 +874,8 @@ SAMPLE_CASES = {
         "a bloodstain on the left sleeve matching Harish's blood group B+. Vikram claims he went "
         "to his car to retrieve documents and did not encounter Harish."
     ),
-    "Drug possession — NDPS Act (Sep 2024)": (
-        "On 7 September 2024, officers from the Narcotics Control Bureau conducted a raid at "
+    "Drug possession — NDPS Act": (
+        "Officers from the Narcotics Control Bureau conducted a raid at "
         "Flat 4B, Sunrise Apartments, Vile Parle, Mumbai. The accused, Aakash Mehta, aged 31, "
         "was present in the flat. During the search, officers recovered 52 grams of heroin "
         "concealed inside a hollow book on a bookshelf. The flat is rented in Aakash's name. "
@@ -885,8 +885,8 @@ SAMPLE_CASES = {
         "42 NDPS but without a prior magistrate's warrant. No independent witness was present."
     ),
     # ── Clear prosecution win (early exit likely) ──────────────────────────────
-    "Restaurant stabbing — CCTV + DNA + 4 witnesses (BNS, Nov 2024)": (
-        "On 22 November 2024, at approximately 9:10 PM, the accused Deepak Rao, aged 34, "
+    "Restaurant stabbing — CCTV + DNA + 4 witnesses": (
+        "At approximately 9:10 PM, the accused Deepak Rao, aged 34, "
         "entered 'Spice Garden' restaurant in Indiranagar, Bengaluru, where the victim Suresh "
         "Nair, aged 40, was dining with his family. Deepak approached Suresh's table, produced "
         "a 6-inch kitchen knife, and stabbed Suresh four times in the chest and abdomen in full "
@@ -902,8 +902,8 @@ SAMPLE_CASES = {
         "any altercation initiated by Suresh. Deepak has a prior conviction for assault in 2021."
     ),
     # ── Clear defence win (early exit likely) ─────────────────────────────────
-    "Robbery — mistaken identity, iron-clad alibi (BNS, Oct 2024)": (
-        "On 5 October 2024, at 11:30 PM, an armed robbery occurred at a petrol station in "
+    "Robbery — mistaken identity, iron-clad alibi": (
+        "At 11:30 PM, an armed robbery occurred at a petrol station in "
         "Andheri West, Mumbai. The attendant, Ramesh Patil, described the robber as a male, "
         "approximately 5'8\", wearing a red hoodie, with a partial face cover. Rs 48,000 in cash "
         "was taken at knifepoint. Three days later, police arrested the accused Farhan Shaikh, "
@@ -920,8 +920,8 @@ SAMPLE_CASES = {
         "committing a second robbery at a nearby petrol station."
     ),
     # ── Contested — legal question genuinely ambiguous ────────────────────────
-    "Self-defence homicide — right of private defence disputed (IPC, Apr 2024)": (
-        "On 18 April 2024, at approximately 2:15 AM, the accused Santosh Pillai, aged 52, "
+    "Self-defence homicide — right of private defence disputed": (
+        "At approximately 2:15 AM, the accused Santosh Pillai, aged 52, "
         "owner of 'Pillai Jewellers' in T. Nagar, Chennai, was sleeping in the back room of "
         "his locked shop when he was awakened by the sound of breaking glass. He found Muniyandi, "
         "aged 28, inside the shop having forced entry by breaking a rear window. Santosh confronted "
@@ -937,8 +937,8 @@ SAMPLE_CASES = {
         "threatened Muniyandi (who had worked briefly as a cleaner at the shop) in a public dispute "
         "three months earlier over alleged petty theft of Rs 500."
     ),
-    "Cheque dishonour — intent to defraud disputed (NI Act / BNS, Jan 2025)": (
-        "On 10 January 2025, a cheque for Rs 18 lakh drawn by the accused Priya Nambiar, "
+    "Cheque dishonour — intent to defraud disputed (NI Act)": (
+        "A cheque for Rs 18 lakh drawn by the accused Priya Nambiar, "
         "aged 44, director of Nambiar Exports Pvt. Ltd., in favour of the complainant "
         "Vijayakumar Textiles was returned unpaid by Canara Bank with the memo 'Funds Insufficient'. "
         "Vijayakumar Textiles supplied 2,000 metres of premium silk fabric on credit in November "
@@ -954,8 +954,8 @@ SAMPLE_CASES = {
         "The complainant argues the statutory notice under Section 138 NI Act was issued and "
         "ignored for 15 days before filing the complaint."
     ),
-    "Cybercrime — data theft, shared device defence (BNS/IT Act, Mar 2025)": (
-        "On 3 March 2025, the cybercrime branch of the Delhi Police arrested Arjun Mehrotra, "
+    "Cybercrime — data theft, shared device defence (IT Act)": (
+        "The cybercrime branch of the Delhi Police arrested Arjun Mehrotra, "
         "aged 23, a final-year computer science student at Delhi Technological University, on "
         "charges of unauthorised access and data theft under the Information Technology Act 2000 "
         "and BNS Section 316 (cheating by personation). The complaint was filed by FinTechPro "
@@ -973,6 +973,31 @@ SAMPLE_CASES = {
         "the laptop regularly for 'personal work' without elaborating."
     ),
 }
+
+
+# Offence date for each sample case. The date is no longer baked into the prose
+# (only the UI date is ever used to pick BNS vs IPC), so we keep it here and
+# prefill the date picker when a demo is selected — a demo is then one-click
+# runnable, while a custom case still requires the user to pick a date. Keys MUST
+# match SAMPLE_CASES; the placeholder maps to None so a blank selection prefills
+# nothing.
+SAMPLE_DATES: dict[str, date | None] = {
+    "Select a sample case…": None,
+    "Theft with CCTV": date(2024, 8, 15),
+    "Dowry death": date(2024, 3, 14),
+    "Grievous hurt — circumstantial": date(2024, 11, 3),
+    "Drug possession — NDPS Act": date(2024, 9, 7),
+    "Restaurant stabbing — CCTV + DNA + 4 witnesses": date(2024, 11, 22),
+    "Robbery — mistaken identity, iron-clad alibi": date(2024, 10, 5),
+    "Self-defence homicide — right of private defence disputed": date(2024, 4, 18),
+    "Cheque dishonour — intent to defraud disputed (NI Act)": date(2025, 1, 10),
+    "Cybercrime — data theft, shared device defence (IT Act)": date(2025, 3, 3),
+}
+
+# Guard against the two dicts drifting apart on future edits.
+assert SAMPLE_DATES.keys() == SAMPLE_CASES.keys(), (
+    "SAMPLE_DATES and SAMPLE_CASES keys are out of sync"
+)
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
@@ -1010,16 +1035,23 @@ def main() -> None:
         st.markdown("<div class='ny-section' style='margin-top:1rem'>Offence Date <span style='color:#C05050'>*</span></div>", unsafe_allow_html=True)
         st.markdown(
             "<p style='color:var(--text-muted);font-size:0.75rem;margin-bottom:0.5rem'>"
-            "The offence date determines whether BNS (on/after 1 Jul 2024) or IPC (before 1 Jul 2024) applies.</p>",
+            "The offence date determines whether BNS (on/after 1 Jul 2024) or IPC (before 1 Jul 2024) applies. "
+            "Prefilled for sample cases — edit it to explore how the date changes the applicable code.</p>",
             unsafe_allow_html=True,
         )
-        picked_date = st.date_input(
-            "Pick a date",
-            value=None,
-            min_value=date(1950, 1, 1),
-            max_value=date(2099, 12, 31),
-            label_visibility="collapsed",
-        )
+        # Prefill the picker with the selected sample's offence date (None for a
+        # blank selection). Like the facts prefill above, passing value= updates
+        # the field when the sample changes but preserves a manual override while
+        # the selection stays put.
+        col_date, _ = st.columns([2, 6])
+        with col_date:
+            picked_date = st.date_input(
+                "Pick a date",
+                value=SAMPLE_DATES.get(sample),
+                min_value=date(1950, 1, 1),
+                max_value=date(2099, 12, 31),
+                label_visibility="collapsed",
+            )
 
         col_btn, col_note = st.columns([2, 6])
         with col_btn:
