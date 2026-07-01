@@ -1,6 +1,6 @@
 <div align="center">
 
-# ⚖️ Nyāya
+# Nyāya
 
 ### Multi-Agent Adversarial Legal Reasoning for Indian Law
 
